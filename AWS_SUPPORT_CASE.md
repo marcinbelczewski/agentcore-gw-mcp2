@@ -88,7 +88,7 @@ interoperability.
 
 ## Minimal reproduction
 
-Repository: **[insert repository URL]**
+Repository: **https://github.com/marcinbelczewski/agentcore-gw-mcp2**
 
 ```bash
 make apply
