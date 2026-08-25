@@ -80,11 +80,57 @@ creation, implicit refresh during target update, and explicit
 `SynchronizeGatewayTargets`. Creating a new Gateway with only
 `2026-07-28` configured from the start does not change the behavior.
 
-`DYNAMIC` listing mode avoids the issue because it performs no create-time
-indexing; a strict `2026-07-28` target becomes READY and can serve stateless
-calls. However, DYNAMIC is not an equivalent workaround for us because we
-need the DEFAULT-mode unified indexed catalog and semantic-search
-interoperability.
+`DYNAMIC` listing mode avoids the issue. We verified that creating a
+DYNAMIC target sends no request to the server, a strict `2026-07-28` target
+becomes READY, and subsequent calls use stateless `server/discover` and
+`tools/call` requests with the required headers and `_meta`. As documented,
+DYNAMIC list operations are forwarded live and can be returned on separate
+paginated `tools/list` pages from DEFAULT cached capabilities.
+
+DYNAMIC is useful confirmation that IAM connectivity and the strict server
+are valid, but it is not an equivalent workaround for us: it changes
+capability-discovery latency and semantics and is not interoperable with
+semantic search or outbound 3LO. We need DEFAULT's indexed unified catalog.
+
+## Documentation context
+
+We cannot find this DEFAULT/2026 incompatibility or a recommendation to use
+DYNAMIC with the latest MCP version in either current source below.
+
+The AWS blog [How AgentCore Gateway supports the MCP 2026-07-28
+spec](https://aws.amazon.com/blogs/machine-learning/how-agentcore-gateway-supports-the-mcp-2026-07-28-spec/)
+states:
+
+- adopting `2026-07-28` requires "no per-target step";
+- "There’s no need to re-create the gateway or make changes to individual
+  gateway target configurations";
+- "Tool definitions, target configuration, and inbound authentication ...
+  are all unchanged by the version change"; and
+- Gateway can front a target that upgrades to `2026-07-28` and translate for
+  older clients.
+
+The current [AgentCore Developer Guide — MCP server
+targets](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-MCPservers.html)
+states:
+
+- `DEFAULT` is the listing mode unless changed;
+- supported MCP protocol versions include `2026-07-28`;
+- DEFAULT uses background synchronization during create, update, and
+  `SynchronizeGatewayTargets` to fetch capabilities;
+- DEFAULT can be used when machine-to-machine authentication is available;
+  and
+- DYNAMIC is presented for live/user-specific capabilities and for cases
+  where no machine-to-machine credential is available, not as a requirement
+  for MCP `2026-07-28` compatibility.
+
+The guide separately describes `2026-07-28` as stateless, says clients do
+not perform initialize, and says Gateway discovers capabilities through
+`server/discover`. It does not warn that DEFAULT target indexing still
+requires the target to implement the `2025-11-25` initialize/session
+protocol.
+
+These statements led us to expect a strict `2026-07-28` target to work in
+DEFAULT mode.
 
 ## Minimal reproduction
 
@@ -118,6 +164,10 @@ Gateway, and one target. AWS provider version: `6.51.0`.
 3. Is there a supported workaround that retains DEFAULT catalog indexing
    and semantic search without requiring the target to implement the legacy
    initialize/session protocol?
-4. Should the documentation clarify that `supportedVersions` applies only
-   to the Gateway's client-facing endpoint and not to its DEFAULT target
-   indexing protocol?
+4. Is the blog's statement that there is "no per-target step" intended to
+   cover MCP server targets in DEFAULT mode, or only the Gateway's
+   client-facing protocol?
+5. Should the Developer Guide document that DEFAULT indexing currently
+   requires the target to retain the `2025-11-25` initialize/session
+   protocol even when the Gateway and target otherwise use only
+   `2026-07-28`?
