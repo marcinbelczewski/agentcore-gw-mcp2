@@ -1,0 +1,13 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/runtime.zip
+
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
