@@ -120,10 +120,11 @@ request is rejected.
 ## Files
 
 ```text
-main.py             Strict, dependency-free MCP 2026-07-28 server
-infra/main.tf       Runtime, Gateway, IAM roles, and failing DEFAULT target
-infra/outputs.tf    Runtime/Gateway identifiers and runtime log group
-Makefile            Apply, direct verification, logs, and cleanup
+main.py                Strict, dependency-free MCP 2026-07-28 server
+AWS_SUPPORT_CASE.md     Ready-to-paste proposed AWS Support ticket
+infra/main.tf          Runtime, Gateway, IAM roles, and failing DEFAULT target
+infra/outputs.tf       Runtime/Gateway identifiers and runtime log group
+Makefile               Apply, direct verification, logs, and cleanup
 ```
 
 ## Cleanup
