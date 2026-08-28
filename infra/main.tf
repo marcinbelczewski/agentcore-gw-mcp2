@@ -147,3 +147,47 @@ resource "aws_bedrockagentcore_gateway_target" "lambda" {
 
   depends_on = [time_sleep.iam_propagation]
 }
+
+# Companion gateway isolating DEFAULT listing mode on the same Function URL:
+# create-time indexing exercises the conversation the acknowledged
+# DEFAULT-mode fix addresses, without polluting the DYNAMIC gateway.
+resource "aws_bedrockagentcore_gateway" "mcp_default" {
+  name            = "${var.name_prefix}-gateway-default"
+  description     = "IAM Gateway allowing only MCP 2026-07-28, DEFAULT-mode target."
+  role_arn        = aws_iam_role.gateway.arn
+  protocol_type   = "MCP"
+  authorizer_type = "AWS_IAM"
+  exception_level = "DEBUG"
+
+  protocol_configuration {
+    mcp {
+      supported_versions = ["2026-07-28"]
+      # Intentionally no session_configuration.
+    }
+  }
+
+  depends_on = [aws_iam_role_policy.gateway]
+}
+
+resource "aws_bedrockagentcore_gateway_target" "lambda_default" {
+  gateway_identifier = aws_bedrockagentcore_gateway.mcp_default.gateway_id
+  name               = "strict-lambda-default"
+  description        = "Strict MCP 2026-07-28 Lambda Function URL in DEFAULT listing mode."
+
+  credential_provider_configuration {
+    gateway_iam_role {
+      service = "lambda"
+    }
+  }
+
+  target_configuration {
+    mcp {
+      mcp_server {
+        endpoint     = aws_lambda_function_url.mcp.function_url
+        listing_mode = "DEFAULT"
+      }
+    }
+  }
+
+  depends_on = [time_sleep.iam_propagation]
+}

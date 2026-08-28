@@ -23,9 +23,11 @@ The deployment contains exactly:
 
 - one IAM-protected Lambda Function URL hosting a dependency-free, strict MCP
   `2026-07-28`-only server;
-- one IAM-protected AgentCore Gateway advertising only `2026-07-28`;
-- one MCP server target using `listing_mode = "DYNAMIC"` with the Gateway IAM
-  role signing for the `lambda` service.
+- two IAM-protected AgentCore Gateways advertising only `2026-07-28`, one per
+  listing mode so the experiments stay isolated;
+- two MCP server targets for the same Function URL — one
+  `listing_mode = "DYNAMIC"`, one `listing_mode = "DEFAULT"` — with the
+  Gateway IAM role signing for the `lambda` service.
 
 The strict server rejects every older protocol version with HTTP 400 and
 JSON-RPC `-32022`, and requires the 2026 per-request
@@ -82,6 +84,24 @@ AgentCore Runtime targets receive `server/discover @2026-07-28`, while plain
 HTTPS URL targets (here, a Lambda Function URL; in production, an ALB/ECS
 server behind a `managed_vpc_resource` private endpoint) receive the removed
 legacy `initialize @2025-11-25` conversation and can never be listed.
+
+### Completeness: DEFAULT mode against the same Function URL
+
+The companion DEFAULT-mode target on the second gateway fails at creation
+time with the identical fingerprint (create-time indexing sent
+`initialize @2025-11-25`, no `Mcp-Method`, no `_meta`), leaving the target
+`FAILED`:
+
+```text
+Cause: While waiting, unexpected state 'FAILED', wanted target 'READY'.
+last error: MCP server '<function URL>' returned HTTP 400 to the initialize handshake.
+```
+
+Measured 2026-08-28 in `eu-west-1`, while the DEFAULT-mode fix for AgentCore
+Runtime targets was still rolling out across regions — so for URL targets
+either the rollout had not reached this region yet, or the fix does not cover
+the URL-target adapter. Both listing modes therefore currently use the legacy
+handshake toward plain HTTPS URL targets.
 
 ## Prerequisites
 
@@ -140,8 +160,8 @@ credential_provider_configuration {
 
 ```text
 lambda_function.py     Strict, dependency-free MCP 2026-07-28 server (Function URL)
-main.py                Same server for AgentCore Runtime (used by main branch)
-infra/main.tf          Lambda, Function URL, Gateway, IAM roles, DYNAMIC target
+main.py                Same server for AgentCore Runtime (used by the DEFAULT-mode case)
+infra/main.tf          Lambda, Function URL, Gateways, IAM roles, DYNAMIC and DEFAULT targets
 infra/outputs.tf       Gateway/Lambda identifiers and the Lambda log group
 Makefile               Apply, direct/Gateway verification, logs, and cleanup
 ```

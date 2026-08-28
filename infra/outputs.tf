@@ -3,13 +3,23 @@ output "aws_region" {
   value       = var.aws_region
 }
 
+output "gateway_default_id" {
+  description = "Identifier of the IAM-protected AgentCore Gateway with the DEFAULT-mode target."
+  value       = aws_bedrockagentcore_gateway.mcp_default.gateway_id
+}
+
+output "gateway_default_url" {
+  description = "MCP endpoint of the IAM-protected AgentCore Gateway with the DEFAULT-mode target."
+  value       = aws_bedrockagentcore_gateway.mcp_default.gateway_url
+}
+
 output "gateway_id" {
-  description = "Identifier of the IAM-protected AgentCore Gateway."
+  description = "Identifier of the IAM-protected AgentCore Gateway with the DYNAMIC-mode target."
   value       = aws_bedrockagentcore_gateway.mcp.gateway_id
 }
 
 output "gateway_url" {
-  description = "MCP endpoint of the IAM-protected AgentCore Gateway."
+  description = "MCP endpoint of the IAM-protected AgentCore Gateway with the DYNAMIC-mode target."
   value       = aws_bedrockagentcore_gateway.mcp.gateway_url
 }
 
