@@ -88,7 +88,7 @@ legacy `initialize @2025-11-25` conversation and can never be listed.
 ### Completeness: DEFAULT mode against the same Function URL
 
 The companion DEFAULT-mode target on the second gateway fails at creation
-time with the identical fingerprint (create-time indexing sent
+time in `eu-west-1` with the identical fingerprint (create-time indexing sent
 `initialize @2025-11-25`, no `Mcp-Method`, no `_meta`), leaving the target
 `FAILED`:
 
@@ -97,11 +97,33 @@ Cause: While waiting, unexpected state 'FAILED', wanted target 'READY'.
 last error: MCP server '<function URL>' returned HTTP 400 to the initialize handshake.
 ```
 
-Measured 2026-08-28 in `eu-west-1`, while the DEFAULT-mode fix for AgentCore
-Runtime targets was still rolling out across regions — so for URL targets
-either the rollout had not reached this region yet, or the fix does not cover
-the URL-target adapter. Both listing modes therefore currently use the legacy
-handshake toward plain HTTPS URL targets.
+### Two-region comparison (2026-08-28)
+
+The DEFAULT-mode fix from AWS Support case `178764595200771` was deployed to
+`us-east-1` and still rolling out elsewhere, so running the same stack in
+both regions isolates the fix scope from rollout lag (`terraform workspace
+new us-east-1` plus `TF_VAR_aws_region`/`TF_VAR_name_prefix`):
+
+| Path | eu-west-1 (fix not deployed) | us-east-1 (fix deployed) |
+| --- | --- | --- |
+| DEFAULT create-time indexing | `initialize @2025-11-25` → target `FAILED` | `server/discover` + `tools/list @2026-07-28` → target `READY` |
+| DEFAULT gateway `tools/list` (client) | n/a (target failed) | returns the echo tool |
+| DYNAMIC request-time discovery | `initialize @2025-11-25` → error | **still** `initialize @2025-11-25` → error |
+
+`us-east-1` Lambda log (UTC):
+
+```text
+15:25:03  server/discover  @2026-07-28  Mcp-Method + _meta   <- DEFAULT create-time indexing (fixed)
+15:25:03  tools/list       @2026-07-28  Mcp-Method + _meta   <- DEFAULT create-time indexing (fixed)
+15:25:28  initialize       @2025-11-25  no Mcp-Method/_meta  <- DYNAMIC serving tools/list (still broken)
+```
+
+Conclusion: the fix covers the **create-time indexing** path for URL targets,
+but the **request-time (DYNAMIC) discovery** path toward URL targets still
+uses the removed legacy handshake even in the fixed region. For URL targets
+the listing modes have effectively swapped roles: DEFAULT now works in fixed
+regions while DYNAMIC — the previously recommended workaround — cannot list
+tools at all.
 
 ## Prerequisites
 
