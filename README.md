@@ -1,53 +1,46 @@
-# AgentCore Gateway DEFAULT listing cannot index an MCP 2026-07-28-only target
+# AgentCore Gateway DYNAMIC listing versus a non-AgentCore MCP 2026-07-28-only target
 
-Minimal reproduction for an Amazon Bedrock AgentCore Gateway compatibility
-issue.
+Follow-up experiment to the DEFAULT-mode reproduction on `main` (AWS Support
+case `178764595200771`, acknowledged and fixed by AWS).
 
-## Problem
+## Question under test
+
+`main` demonstrated that DEFAULT listing mode indexed targets with a legacy
+`initialize @2025-11-25` conversation. DYNAMIC listing mode did **not** show
+that problem for AgentCore Runtime-hosted targets: request-time discovery used
+`server/discover @2026-07-28`.
+
+A separate production observation suggests the target hosting type matters: a
+strict MCP 2026-07-28 server on ECS behind a private ALB (Gateway
+`managed_vpc_resource` private endpoint, DYNAMIC listing) received legacy
+`initialize` requests at `tools/list` time and the Gateway returned an empty
+tool list when that target failed.
+
+This branch isolates one variable: a **non-AgentCore URL target** in DYNAMIC
+mode, using the simplest such hosting — an IAM-protected Lambda Function URL.
 
 The deployment contains exactly:
 
-- one IAM-protected AgentCore Runtime hosting a dependency-free MCP server;
-- one IAM-protected AgentCore Gateway;
-- one IAM-authenticated MCP server target using `listing_mode = "DEFAULT"`.
+- one IAM-protected Lambda Function URL hosting a dependency-free, strict MCP
+  `2026-07-28`-only server;
+- one IAM-protected AgentCore Gateway advertising only `2026-07-28`;
+- one MCP server target using `listing_mode = "DYNAMIC"` with the Gateway IAM
+  role signing for the `lambda` service.
 
-The Gateway advertises only the latest MCP version and has no session
-configuration:
-
-```hcl
-protocol_configuration {
-  mcp {
-    supported_versions = ["2026-07-28"]
-  }
-}
-```
-
-The runtime application also accepts and advertises only `2026-07-28`.
-Older versions are rejected with HTTP 400 and JSON-RPC `-32022`.
+The strict server rejects every older protocol version with HTTP 400 and
+JSON-RPC `-32022`, and requires the 2026 per-request
+`_meta` protocol version.
 
 ### Expected
 
-Creating the DEFAULT-mode target should discover the server through MCP
-`2026-07-28`, using `server/discover` and stateless list operations.
+`tools/list` sent to the Gateway succeeds; the Lambda log shows only
+`server/discover` and `tools/list` requests carrying
+`MCP-Protocol-Version: 2026-07-28` and `_meta`.
 
-### Actual
+### Under investigation
 
-`CreateGatewayTarget` performs a legacy session handshake:
-
-```text
-initialize                  MCP-Protocol-Version: 2025-11-25
-notifications/initialized   MCP-Protocol-Version: 2025-11-25
-tools/list                  MCP-Protocol-Version: 2025-11-25
-```
-
-The strict target rejects the first request. Target creation fails with a
-message equivalent to:
-
-```text
-MCP server '<runtime URL>' returned HTTP 400 to the initialize handshake.
-```
-
-The runtime's CloudWatch log proves the request sent by Gateway:
+Whether this target type instead receives a legacy conversation, as observed
+with the managed-VPC/ALB/ECS target:
 
 ```json
 {
@@ -58,17 +51,17 @@ The runtime's CloudWatch log proves the request sent by Gateway:
 }
 ```
 
-This has been reproduced in `eu-west-1` and `us-east-1`. A Gateway created
-from the start with only `2026-07-28` behaves the same way. The issue is
-specific to DEFAULT capability indexing. DYNAMIC targets skip create-time
-indexing and can onboard a strict `2026-07-28` server.
+If the Lambda URL target passes, the failing variable narrows further to the
+`managed_vpc_resource` private-endpoint path (or its missing credential
+provider), and a follow-up variant should reproduce that topology.
 
 ## Prerequisites
 
 - current AWS credentials for the account under test;
-- AWS CLI with `bedrock-agentcore` and `bedrock-agentcore-control` support;
-- Terraform; and
-- `jq` (only for pretty-printing the optional direct-runtime check).
+- AWS CLI with `bedrock-agentcore-control` support;
+- Terraform;
+- curl 8.10+ (`--aws-sigv4` with session-token support); and
+- `jq` for pretty-printing responses.
 
 No Python dependencies or application build step are required.
 
@@ -78,18 +71,21 @@ No Python dependencies or application build step are required.
 make apply
 ```
 
-The command is **expected to exit non-zero** while creating
-`aws_bedrockagentcore_gateway_target.runtime`. The runtime and Gateway are
-created successfully before the target fails. A 30-second wait is included
-to rule out IAM propagation as the cause.
+DYNAMIC listing defers discovery, so apply is expected to succeed.
 
-Optionally verify that the runtime itself handles `2026-07-28` directly:
+Optionally verify the Lambda serves strict `2026-07-28` directly:
 
 ```bash
-make verify-runtime
+make verify-lambda
 ```
 
-Inspect the request received from Gateway:
+Run the experiment — one `tools/list` through the Gateway:
+
+```bash
+make verify-gateway
+```
+
+Then inspect exactly what the Gateway sent to the target:
 
 ```bash
 make logs
@@ -102,29 +98,24 @@ Relevant configuration is intentionally explicit:
 supported_versions = ["2026-07-28"]
 
 # Target capability mode
-listing_mode = "DEFAULT"
+listing_mode = "DYNAMIC"
 
 # Target authentication
 credential_provider_configuration {
   gateway_iam_role {
-    service = "bedrock-agentcore"
+    service = "lambda"
   }
 }
 ```
 
-AgentCore Runtime has no control-plane `supportedVersions` field. The
-runtime's version policy is therefore enforced by the MCP server in
-`main.py`; `server/discover` returns only `2026-07-28`, and every older
-request is rejected.
-
 ## Files
 
 ```text
-main.py                Strict, dependency-free MCP 2026-07-28 server
-AWS_SUPPORT_CASE.md     Ready-to-paste proposed AWS Support ticket
-infra/main.tf          Runtime, Gateway, IAM roles, and failing DEFAULT target
-infra/outputs.tf       Runtime/Gateway identifiers and runtime log group
-Makefile               Apply, direct verification, logs, and cleanup
+lambda_function.py     Strict, dependency-free MCP 2026-07-28 server (Function URL)
+main.py                Same server for AgentCore Runtime (used by main branch)
+infra/main.tf          Lambda, Function URL, Gateway, IAM roles, DYNAMIC target
+infra/outputs.tf       Gateway/Lambda identifiers and the Lambda log group
+Makefile               Apply, direct/Gateway verification, logs, and cleanup
 ```
 
 ## Cleanup
@@ -133,5 +124,5 @@ Makefile               Apply, direct verification, logs, and cleanup
 make destroy
 ```
 
-The Makefile also removes a failed target that may have been created
-remotely but not recorded in Terraform state.
+The Makefile also removes a target that may have been created remotely but not
+recorded in Terraform state.

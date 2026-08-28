@@ -13,12 +13,12 @@ output "gateway_url" {
   value       = aws_bedrockagentcore_gateway.mcp.gateway_url
 }
 
-output "runtime_arn" {
-  description = "ARN of the IAM-protected strict MCP 2026-07-28 runtime."
-  value       = aws_bedrockagentcore_agent_runtime.mcp.agent_runtime_arn
+output "lambda_function_url" {
+  description = "IAM-protected Function URL of the strict MCP 2026-07-28 Lambda."
+  value       = aws_lambda_function_url.mcp.function_url
 }
 
-output "runtime_log_group" {
-  description = "CloudWatch log group containing the target-indexing request evidence."
-  value       = "/aws/bedrock-agentcore/runtimes/${aws_bedrockagentcore_agent_runtime.mcp.agent_runtime_id}-DEFAULT"
+output "lambda_log_group" {
+  description = "CloudWatch log group containing the Gateway-to-target request evidence."
+  value       = "/aws/lambda/${aws_lambda_function.mcp.function_name}"
 }
