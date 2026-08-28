@@ -131,6 +131,7 @@ class Handler(BaseHTTPRequestHandler):
         elif method == "tools/list":
             result = {
                 "tools": TOOLS,
+                "resultType": "complete",
                 "ttlMs": 300_000,
                 "cacheScope": "public",
             }

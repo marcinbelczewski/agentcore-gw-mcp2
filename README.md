@@ -108,18 +108,35 @@ handshake toward plain HTTPS URL targets.
 - current AWS credentials for the account under test;
 - AWS CLI with `bedrock-agentcore-control` support;
 - Terraform;
-- curl 8.10+ (`--aws-sigv4` with session-token support); and
-- `jq` for pretty-printing responses.
+- curl 8.10+ (`--aws-sigv4` with session-token support);
+- `jq` for pretty-printing responses; and
+- `uv` (only for `make verify-compliance`).
 
-No Python dependencies or application build step are required.
+No Python dependencies or application build step are required; the deployed
+server is a single stdlib file.
+
+## Server compliance
+
+The strict server's MCP `2026-07-28` compliance is not hand-asserted: `make
+verify-compliance` drives `lambda_function.py` with the **official MCP Python
+SDK** (2.x) as the client oracle through a local Function URL shim. The SDK
+performs `server/discover`, `tools/list`, and `tools/call` with full typed
+response validation, and the script additionally proves the strict rejections
+(legacy `initialize`, missing `_meta`, `Mcp-Method` mismatch, and the
+spec-mandated treatment of a missing `MCP-Protocol-Version` header as
+`2025-03-26`, which is then rejected).
 
 ## Reproduce
 
 ```bash
+make verify-compliance
 make apply
 ```
 
-DYNAMIC listing defers discovery, so apply is expected to succeed.
+DYNAMIC listing defers discovery, so its target creation succeeds; the
+DEFAULT-mode target on the second gateway is expected to fail create-time
+indexing (see below), which makes `make apply` exit non-zero after creating
+everything else.
 
 Optionally verify the Lambda serves strict `2026-07-28` directly:
 
@@ -160,6 +177,7 @@ credential_provider_configuration {
 
 ```text
 lambda_function.py     Strict, dependency-free MCP 2026-07-28 server (Function URL)
+verify_compliance.py   Official-SDK compliance verification for lambda_function.py
 main.py                Same server for AgentCore Runtime (used by the DEFAULT-mode case)
 infra/main.tf          Lambda, Function URL, Gateways, IAM roles, DYNAMIC and DEFAULT targets
 infra/outputs.tf       Gateway/Lambda identifiers and the Lambda log group

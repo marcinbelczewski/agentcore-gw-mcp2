@@ -138,6 +138,7 @@ def lambda_handler(event: dict[str, object], _context: object) -> dict[str, obje
     elif method == "tools/list":
         result = {
             "tools": TOOLS,
+            "resultType": "complete",
             "ttlMs": 300_000,
             "cacheScope": "public",
         }

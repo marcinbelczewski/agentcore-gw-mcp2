@@ -14,7 +14,7 @@ if [[ -n "$${AWS_SESSION_TOKEN:-}" ]]; then \
 fi
 endef
 
-.PHONY: apply destroy fmt init logs validate verify-gateway verify-gateway-default verify-lambda
+.PHONY: apply destroy fmt init logs validate verify-compliance verify-gateway verify-gateway-default verify-lambda
 
 init:
 	$(TF) init
@@ -28,6 +28,12 @@ validate: init
 # DYNAMIC listing defers discovery, so apply is expected to succeed.
 apply: validate
 	$(TF) apply -auto-approve
+
+# Prove lambda_function.py is MCP 2026-07-28 compliant using the official
+# Python SDK as the client oracle (pulled ephemerally; the Lambda stays
+# dependency-free). Also proves the strict rejections of legacy traffic.
+verify-compliance:
+	uv run --no-project --with 'mcp>=2.1,<3' verify_compliance.py
 
 # Direct check: the Lambda itself serves strict MCP 2026-07-28.
 verify-lambda:
