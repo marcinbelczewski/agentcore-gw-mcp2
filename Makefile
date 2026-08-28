@@ -41,6 +41,7 @@ verify-lambda:
 		-H 'Content-Type: application/json' \
 		-H 'Accept: application/json, text/event-stream' \
 		-H 'MCP-Protocol-Version: 2026-07-28' \
+		-H 'Mcp-Method: server/discover' \
 		-d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"repro","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
 	| jq .
 
@@ -57,11 +58,13 @@ verify-gateway:
 		-H 'Content-Type: application/json' \
 		-H 'Accept: application/json, text/event-stream' \
 		-H 'MCP-Protocol-Version: 2026-07-28' \
+		-H 'Mcp-Method: tools/list' \
 		-d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"repro","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
 	| jq .
 
 logs:
-	aws logs tail "$$($(TF) output -raw lambda_log_group)" --since 10m --format short
+	aws logs tail "$$($(TF) output -raw lambda_log_group)" \
+		--region "$$($(TF) output -raw aws_region)" --since 10m --format short
 
 destroy:
 	@set +e; \

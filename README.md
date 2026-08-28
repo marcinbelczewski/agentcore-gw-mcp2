@@ -37,10 +37,25 @@ JSON-RPC `-32022`, and requires the 2026 per-request
 `server/discover` and `tools/list` requests carrying
 `MCP-Protocol-Version: 2026-07-28` and `_meta`.
 
-### Under investigation
+### Actual (reproduced 2026-08-28, eu-west-1)
 
-Whether this target type instead receives a legacy conversation, as observed
-with the managed-VPC/ALB/ECS target:
+Target creation succeeds (DYNAMIC defers discovery), but serving the first
+client `tools/list` fails. The Gateway responds:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "ValidationException - MCP server '<function URL>' returned HTTP 400 to the initialize handshake."
+    }
+  ],
+  "isError": true
+}
+```
+
+The Lambda's CloudWatch log proves the request the Gateway sent — the same
+legacy fingerprint as the fixed DEFAULT-mode issue:
 
 ```json
 {
@@ -51,9 +66,22 @@ with the managed-VPC/ALB/ECS target:
 }
 ```
 
-If the Lambda URL target passes, the failing variable narrows further to the
-`managed_vpc_resource` private-endpoint path (or its missing credential
-provider), and a follow-up variant should reproduce that topology.
+For contrast, a direct signed call to the same Function URL minutes earlier
+shows the compliant conversation the Lambda accepts:
+
+```json
+{
+  "method": "server/discover",
+  "protocol_version_header": "2026-07-28",
+  "has_meta": true
+}
+```
+
+So in DYNAMIC mode the request-time discovery path differs by hosting type:
+AgentCore Runtime targets receive `server/discover @2026-07-28`, while plain
+HTTPS URL targets (here, a Lambda Function URL; in production, an ALB/ECS
+server behind a `managed_vpc_resource` private endpoint) receive the removed
+legacy `initialize @2025-11-25` conversation and can never be listed.
 
 ## Prerequisites
 
